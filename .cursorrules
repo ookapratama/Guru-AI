@@ -1,0 +1,22 @@
+# Project: EduSolve AI Rules
+
+## Coding Standards
+- Use Python 3.11 features.
+- Strict type hinting for all functions and class members.
+- Use FastAPI's asynchronous support (`async def`) for all I/O bound operations.
+- Pydantic models for request validation and response serialization.
+
+## Backend Structure
+- All API routes must be under `app/api/v1/endpoints/`.
+- Business logic or AI operations must reside in `app/services/`.
+- Database operations should use SQLAlchemy sessions via dependency injection.
+- Migrations must be handled by Alembic.
+
+## AI Stack
+- Use `google.generativeai` and `langchain` for AI logic.
+- Prefer `gemini-1.5-flash` for multi-modal (vision) tasks.
+- Keep prompts modular in `app/services/prompts.py`.
+
+## Documentation
+- Always check `docs/prd.md`, `docs/rules.md`, and `docs/skills.md` before starting a task.
+- Update `docs/skills.md` if a new common development pattern is introduced.
