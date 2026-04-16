@@ -16,7 +16,7 @@ from app.db.supabase import supabase_client
 # di iterasi berikutnya oleh tim Data Ingestion.
 # Saat ini mengembalikan vektor nol berdimensi 768 (sesuai schema).
 # ============================================================
-async def get_embedding(text: str) -> List[float]:
+async def get_embedding(text: str) -> list[float]:
     """
     Placeholder — menghasilkan vektor dummy 768 dimensi.
 
@@ -27,7 +27,7 @@ async def get_embedding(text: str) -> List[float]:
     return [0.0] * 768
 
 
-async def retrieve_context(query_text: str, top_k: int = 3) -> List[str]:
+async def retrieve_context(query_text: str, top_k: int = 3) -> list[str]:
     """
     Mengambil dokumen paling relevan dari Supabase menggunakan vector similarity search.
     Memanggil RPC function 'match_documents' yang ada di database.
@@ -37,7 +37,7 @@ async def retrieve_context(query_text: str, top_k: int = 3) -> List[str]:
         top_k: Jumlah dokumen teratas yang diambil (default: 3).
 
     Returns:
-        List berisi isi teks (content) dari dokumen paling relevan.
+        list berisi isi teks (content) dari dokumen paling relevan.
     """
 
     if supabase_client is None:
