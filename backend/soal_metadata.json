@@ -1,0 +1,24 @@
+{
+  "soal": [
+    {
+      "id": "UTBK_MATH_001",
+      "subject": "Math",
+      "topic": "Trigonometry",
+      "difficulty": "Medium",
+      "type": "multiple_choice",
+      "correct_answer": "B",
+      "page_number": 1,
+      "pdf_file": "utbk_math_2024.pdf"
+    },
+    {
+      "id": "UTBK_ENGLISH_001",
+      "subject": "English",
+      "topic": "Grammar",
+      "difficulty": "Easy",
+      "type": "essay",
+      "correct_answer": "Jawaban lengkap dalam Bahasa Inggris yang benar",
+      "page_number": 1,
+      "pdf_file": "utbk_english_2024.pdf"
+    }
+  ]
+}
