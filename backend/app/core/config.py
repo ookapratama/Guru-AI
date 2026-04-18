@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # AI
     GOOGLE_API_KEY: str
     GROQ_API_KEY: str
+    HF_TOKEN: str
     
     # Security
     ALLOWED_HOSTS: list[str] = ["*"]

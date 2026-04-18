@@ -15,8 +15,7 @@ from pathlib import Path
 from typing import List, Tuple
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_community.vectorstores import SupabaseVectorStore
+import httpx
 from langchain_core.documents import Document
 
 from app.core.config import settings
@@ -118,7 +117,26 @@ def split_documents(
     return chunks
 
 
-def ingest_chunks_to_supabase(
+async def get_hf_embeddings_async(texts: List[str]) -> List[List[float]]:
+    """Native request ke HuggingFace agar terhindar dari bug JSONDecodeError LangChain."""
+    import httpx
+    # Rute terbaru HuggingFace API menggunaan sistem router. all-mpnet-base-v2 dipilih karena memproduksi 768 dimensi vektor.
+    api_url = "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-mpnet-base-v2/pipeline/feature-extraction"
+    headers = {"Authorization": f"Bearer {settings.HF_TOKEN}"}
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(api_url, headers=headers, json={"inputs": texts, "options": {"wait_for_model": True}})
+        
+        if response.status_code != 200:
+            raise ValueError(f"HTTP {response.status_code}: {response.text}")
+            
+        data = response.json()
+        if not isinstance(data, list):
+             raise ValueError(f"Respon tidak valid dari HF: {data}")
+        return data
+
+
+async def ingest_chunks_to_supabase(
     chunks: List[Document],
     table_name: str = VECTOR_STORE_TABLE,
 ) -> Tuple[int, str]:
@@ -142,28 +160,32 @@ def ingest_chunks_to_supabase(
         raise ValueError("Supabase client tidak aktif. Cek .env SUPABASE_URL dan SUPABASE_KEY")
     
     try:
-        print(f"[INFO] Inisialisasi Google Embeddings ({EMBEDDING_MODEL})...")
-        embeddings = GoogleGenerativeAIEmbeddings(
-            model=EMBEDDING_MODEL,
-            google_api_key=settings.GOOGLE_API_KEY,
-        )
-        
         print(f"[INFO] Uploading {len(chunks)} chunks ke Supabase tabel '{table_name}'...")
         
-        # Upload ke SupabaseVectorStore
-        vector_store = SupabaseVectorStore.from_documents(
-            documents=chunks,
-            embedding=embeddings,
-            client=supabase_client,
-            table_name=table_name,
-        )
+        # 1. Generate Embeddings text (Custom HTTP Request)
+        texts = [doc.page_content for doc in chunks]
+        print("[INFO] Generating vectors via Native HF Pipeline...")
+        embedded_vectors = await get_hf_embeddings_async(texts)
         
-        message = f"Berhasil upload {len(chunks)} chunks ke Supabase"
+        # 2. Map data sesuai skema database asli (context, metadata, embedding)
+        data_to_insert = []
+        for chunk, vector in zip(chunks, embedded_vectors):
+            data_to_insert.append({
+                "content": chunk.page_content,
+                "metadata": chunk.metadata,
+                "embedding": vector
+            })
+            
+        # 3. Eksekusi native Supabase python client
+        print(f"[INFO] Menyuntikkan matriks ke dalam Database...")
+        response = supabase_client.table(table_name).insert(data_to_insert).execute()
+        
+        message = f"Berhasil upload {len(chunks)} row data ke tabel Supabase '{table_name}'"
         print(f"[SUCCESS] {message}")
         return len(chunks), message
         
     except Exception as e:
-        error_msg = f"Gagal ingest ke Supabase: {str(e)}"
+        error_msg = f"Gagal ingest ke Supabase (Kemungkinan HF_TOKEN salah atau Kolom/Tabel tidak sesuai): {str(e)}"
         print(f"[ERROR] {error_msg}")
         raise ValueError(error_msg)
 
@@ -204,7 +226,7 @@ async def ingest_pdf_pipeline(data_dir: str) -> dict:
         
         # Ingest
         print(f"\n[STEP 3] Ingest to Supabase...")
-        uploaded, msg = ingest_chunks_to_supabase(chunks)
+        uploaded, msg = await ingest_chunks_to_supabase(chunks)
         
         return {
             "success": True,
@@ -257,7 +279,7 @@ async def process_uploaded_file_ocr(file_bytes: bytes, filename: str, mime_type:
              
         # Ingest
         print(f"\n[STEP 3] Menyimpan vector embeddings ke Supabase...")
-        uploaded, msg = ingest_chunks_to_supabase(chunks)
+        uploaded, msg = await ingest_chunks_to_supabase(chunks)
         
         return {
             "success": True,

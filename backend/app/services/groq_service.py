@@ -5,7 +5,7 @@ from groq import AsyncGroq
 from app.core.config import settings
 
 client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-MODEL_NAME = "llama-3.2-11b-vision-instruct"
+MODEL_NAME = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 async def extract_text_from_file_ocr_groq(file_bytes: bytes, mime_type: str) -> str:
     """
@@ -17,8 +17,8 @@ async def extract_text_from_file_ocr_groq(file_bytes: bytes, mime_type: str) -> 
     # 1. Konversi Tipe File ke urutan Base64 Image(s)
     if mime_type == "application/pdf":
         doc = fitz.open("pdf", file_bytes)
-        # Batasi ke maksimal beberapa halaman agar tidak terhalang batas token Groq.
-        max_pages = min(len(doc), 10) 
+        # Llama 4 Scout di Groq membatasi maksimal 5 gambar per 1 request
+        max_pages = min(len(doc), 5) 
         for page_num in range(max_pages):
             page = doc.load_page(page_num)
             pix = page.get_pixmap(dpi=150) # Resolusi moderate untuk OCR, menekan penggunaan token
