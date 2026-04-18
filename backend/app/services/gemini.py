@@ -24,7 +24,7 @@ from app.core.config import settings
 client = genai.Client(api_key=settings.GOOGLE_API_KEY)
 
 # Nama model yang digunakan
-MODEL_NAME = "gemini-1.5-flash"
+MODEL_NAME = "gemini-2.0-flash"
 
 
 def build_prompt(
@@ -198,3 +198,29 @@ def _clean_json_response(raw_text: str) -> str:
         return match.group(1).strip()
 
     return raw_text.strip()
+
+
+async def extract_text_from_file_ocr(file_bytes: bytes, mime_type: str) -> str:
+    """
+    Mengekstrak teks (OCR) dari file (PDF/Image) menggunakan Gemini 1.5 Flash.
+    """
+    try:
+        prompt = "Ekstrak seluruh teks dan informasi yang ada di dalam dokumen ini. " \
+                 "Pertahankan struktur semantik aslinya. " \
+                 "Jika ada rumus matematika, tulis menggunakan notasi LaTeX ($...$ atau $$...$$). " \
+                 "JANGAN menambahkan teks narasi pembuka, penutup, atau komentar apa pun dari dirimu, cukup output teks ekstraksinya saja."
+        
+        response = await client.aio.models.generate_content(
+            model=MODEL_NAME,
+            contents=[
+                types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
+                prompt
+            ],
+            config=types.GenerateContentConfig(
+                temperature=0.1,  # temperature rendah agar faktual & akurat
+            ),
+        )
+        return response.text.strip()
+    except Exception as e:
+        raise Exception(f"Gagal melakukan OCR dokumen via Gemini: {str(e)}")
+

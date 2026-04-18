@@ -21,6 +21,7 @@ from langchain_core.documents import Document
 
 from app.core.config import settings
 from app.db.supabase import supabase_client
+from app.services.groq_service import extract_text_from_file_ocr_groq
 
 
 # ============================================================
@@ -220,4 +221,58 @@ async def ingest_pdf_pipeline(data_dir: str) -> dict:
             "success": False,
             "message": str(e),
             "stats": {"documents": 0, "chunks": 0, "uploaded": 0}
+        }
+
+
+async def process_uploaded_file_ocr(file_bytes: bytes, filename: str, mime_type: str) -> dict:
+    """
+    Pipeline OCR lengkap untuk satu file upload: 
+    Mengekstrak Teks via Llama 3 Groq -> Splitting per chunk -> Ingest to Supabase.
+    """
+    try:
+        print(f"\n[STEP 1] Ekstrak Teks (OCR) dari {filename} menggunakan Groq Llama 3 Vision...")
+        extracted_text = await extract_text_from_file_ocr_groq(file_bytes, mime_type)
+        
+        if not extracted_text:
+            return {
+                "success": False, 
+                "message": "Gagal: Teks hasil OCR kosong.", 
+                "filename": filename,
+                "stats": {}
+            }
+            
+        print(f"\n[STEP 2] Splitting teks (panjang {len(extracted_text)} karakter)...")
+        doc = Document(page_content=extracted_text, metadata={"source_file": filename, "method": "groq_llama_ocr"})
+        
+        # Split dokumen
+        chunks = split_documents([doc])
+        
+        if not chunks:
+             return {
+                 "success": False, 
+                 "message": "Tidak ada chunks yang dihasilkan setelah proses splitting.", 
+                 "filename": filename,
+                 "stats": {}
+             }
+             
+        # Ingest
+        print(f"\n[STEP 3] Menyimpan vector embeddings ke Supabase...")
+        uploaded, msg = ingest_chunks_to_supabase(chunks)
+        
+        return {
+            "success": True,
+            "message": msg,
+            "filename": filename,
+            "stats": {
+                "chars_extracted": len(extracted_text),
+                "chunks": len(chunks),
+                "uploaded": uploaded
+            }
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e),
+            "filename": filename,
+            "stats": {}
         }
